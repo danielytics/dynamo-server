@@ -7,12 +7,20 @@
     [dynamo.protocols.commands :as commands]))
 
 
+;; Built in rules for use in command grammars
+(def builtin-rules
+  {:target  "word"
+   :message "text"})
+
+
+;; Parser to skip whitespace between tokens
 (def whitespace
   (insta/parser
     "whitespace = #'\\s+'"))
 
 
 (defn maybe-strip
+  "If string starts with a +, strip it"
   [string]
   (if (= \+ (first string))
     (subs string 1)
@@ -20,6 +28,7 @@
 
 
 (defn generate-command-rules
+  "Taking a map of command rules, generate an instaparse compatible rules string"
   [commands]
   (for [[k v] commands]
     (let [k (name k)
@@ -29,12 +38,9 @@
            (when k? (str "<'" k "'> " (when-not v "end-of-command")))
            v "\n"))))
 
-(def builtin-rules
-  {:target  "word"
-   :message "text"})
-
 
 (defn make-grammar
+  "Given a map of command rules, generate a complete instaparse grammar"
   [commands]
   (str
     "cmd = "
@@ -49,11 +55,14 @@
 
 
 (defn make-parser
+  "Given a grammar as a staing, generate a parser"
   [grammar]
   (insta/parser grammar :auto-whitespace whitespace))
 
 
 (defn make-command-list
+  "Take a component and retrieve command rules from any dependency components
+   that satisfy the Command protocol"
   [component]
   (reduce
     (fn [cmd-list cmd]
@@ -65,6 +74,7 @@
 
 
 (defn process-command
+  "Given a parsed command, send an appropriate update to handle the command"
   [updater command [raw args] raw-data]
   (if-not (instance? clojure.lang.IRecord command)
     ;; Send the command to update game data
@@ -93,10 +103,14 @@
   component/Lifecycle
   (start [component]
     (let [command-list (make-command-list component)]
+      ;; If the command list is not empty, generate a parser and add it to the
+      ;; component for later access
       (if-not (empty? command-list)
         (let [grammar (make-grammar command-list)
               parser  (make-parser grammar)]
           (assoc component
+                 ;; TODO: commands and grammar only need to be stored in :dev
+                 ;; profile
                  :commands  (into [] (map (comp maybe-strip name)
                                           (keys command-list)))
                  :grammar   grammar
@@ -104,17 +118,20 @@
         component)))
 
   (stop [component]
-    (dissoc component :parser))
+    (dissoc component :parser :grammar :parser))
   
+  ;; Handle TCP requests by parsing the request string with the command parser
+  ;; and routing the result as an update
   request-handler/RequestHandler
   (handle [{:keys [parser]} connection request]
     (when parser
       ;; Parse the request
       (let [command   (->> (parser request)
                            (insta/transform
-                             {:cmd identity
+                             {:cmd  identity
                               :text identity
                               :word identity}))]
+        ;; Process the parsed command
         (process-command
           updater
           command
