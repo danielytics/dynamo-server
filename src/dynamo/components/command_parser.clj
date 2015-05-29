@@ -6,15 +6,6 @@
     [dynamo.protocols.updates :as updates]
     [dynamo.protocols.commands :as commands]))
 
-(def command-list
-  {:+say "text"
-   :+act "act-cmd text?
-         act-cmd = 'test' | 'foo'| 'bar'"
-   :q "('?' | 'help') topic
-       topic = text"
-   :+look "word?"})
-
-
 
 (def whitespace
   (insta/parser
