@@ -3,7 +3,7 @@
     [com.stuartsierra.component :as component]  
     [clojure.core.async :as async]
     [dynamo.protocols.updates :as updates]
-    [dynamo.components.server :refer [*connection*]]))
+    [dynamo.lib.player :refer [*current-player*]]))
 
 
 (defn- register-handlers
@@ -67,27 +67,36 @@
                                   (assoc component
                                          :cmd      chan
                                          :handlers registered-handlers))])]
-      ;; Receive and process updates to the game world in a loop
-      (async/go-loop [game-world {}]
-        (when-let [[conn update-id data] (async/<! chan)]
-          ;; Perform updates against the world
-          (let [handlers (get registered-handlers update-id)]
-            (recur
-              (binding [*connection* conn]
-                (reduce
-                  (fn [game-world handler]
-                    (handler game-world [update-id data]))
-                  game-world
-                  handlers))))))
 
       ;; Store the channel for future access
       (let [component (assoc component
                         :handlers register-handlers
                         :cmd chan)] 
+
+        ;; Receive and process updates to the game world in a loop
+        (async/go-loop [game-world {}]
+          (when-let [[cur-player update-id data] (async/<! chan)]
+            ;; Perform updates against the world
+            (let [handlers (get registered-handlers update-id)]
+              (recur
+                (binding [*current-player* cur-player]
+                  (reduce
+                    (fn [game-world handler]
+                      (let [result (handler game-world [update-id data])]
+                        (if-let [[game-world updates] (and (vector? result) result)]
+                          (do ; If handler returned a pair, then it includes updates to resend
+                            (doseq [update updates]
+                              (apply updates/send! component update))
+                            game-world)
+                          result)))
+                    game-world
+                    handlers))))))
+
         ;; A second from now, tell all components that want to init the game-world
         ;; to do so
         (async/go (async/<! (async/timeout 1000))
                   (updates/send! component :game/init nil))
+
         component)))
 
   (stop [{:keys [cmd] :as component}]
@@ -101,7 +110,7 @@
     (async/go
       (async/>! 
         (:cmd component)
-        [*connection* update-id data]))))
+        [*current-player* update-id data]))))
 
 
 (defn new-game-loop []

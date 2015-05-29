@@ -96,7 +96,7 @@
         :update/forward
         {:command (keyword "command" raw)
          :data    {:text raw-data :tokens args}
-         :on-failure :error/invalid-command})))
+         :on-failure :command/unknown})))
 
 
 (defrecord CommandParser [updater]

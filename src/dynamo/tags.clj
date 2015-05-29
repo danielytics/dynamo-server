@@ -1,6 +1,7 @@
 (ns dynamo.tags
   (:require
-    [dynamo.comms :refer [put! put-bytes!]]))
+    [dynamo.lib.player :as player]
+    [dynamo.lib.comms :refer [put! put-bytes!]]))
 
 
 (def mxp-elements
@@ -25,8 +26,8 @@
    #_"<RExits>Exits: <Ex>N</Ex>, <Ex>S</Ex>, <Ex>E</Ex>, <Ex>W</Ex></RExits>"
    #_"<Prompt>[<Hp>100</Hp>/<MaxHp>120</MaxHp>hp <Mana>50</Mana>/<MaxMana>55</MaxMana>mana]</Prompt>")
 
-(def open-line- (str \u001b "[0z"))
-(def secure-line- (str \u001b "[1z"))
+(def open-line (str \u001b "[0z"))
+(def secure-line (str \u001b "[1z"))
 
 
 (defn init
@@ -36,7 +37,7 @@
   (put-bytes! s [0xff 0xfa 0x5B 0xff 0xf0])
   ;; Send element definition
   (doseq [element mxp-elements]
-    (put! s (str secure-line- element "\n"))))
+    (put! s (str secure-line element "\n"))))
 
 
 (defn- gen-attrs
@@ -44,17 +45,17 @@
   (when-not (empty? attrs)
     (->>
       attrs
-      (map (fn [k v] (str k "=\"" v "\"")))
+      (map (fn [[k v]] (str k "=\"" v "\"")))
       (clojure.string/join " ")
       (str " "))))
 
 
 (defn- tagged
   "Tag data with MXP element"
-  ([player tag data]
-    (tagged player tag nil data))
-  ([{:keys [preferences]} tag conf data]
-    (if (:mxp? preferences)
+  ([tag data]
+    (tagged tag nil data))
+  ([tag conf data]
+    (if (:mxp? (player/preferences))
       (str "<" tag (gen-attrs conf) ">" data "</" tag "/>")
       data)))
 
@@ -63,9 +64,8 @@
 (defn- make-tag
   [tag]
   (fn [& [conf text]]
-    (let [[conf text] (if text [text text] [nil conf])
-          player *player*]
-      (tagged player tag conf text))))
+    (let [[conf text] (if text [text text] [nil conf])]
+      (tagged tag conf text))))
 
 
 (def room-name        (make-tag "RName"))
@@ -76,16 +76,16 @@
   [prefix exits]
   (->>
     exits
-    (map (partial tagged *player* "Ex"))
+    (map (partial tagged "Ex"))
     (clojure.string/join ", ") 
     (str prefix " ")
-    (tagged *player* "RExits")))
+    (tagged "RExits")))
 
 
 
 (defn lines
   [type & lines]
-  (let [prefix (if (= type :secure) secure-line- open-line-)]
+  (let [prefix (if (= type :secure) secure-line open-line)]
     (apply
       str
       (for [line lines]
@@ -102,5 +102,5 @@
 (defn send-secure
   "Send a secure line of MXP data"
   [{:keys [socket preferences]} line]
-  (put! socket (str (when (:mxp? preferences) secure-line-) line "\n")))
+  (put! socket (str (when (:mxp? preferences) secure-line) line "\n")))
 

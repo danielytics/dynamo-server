@@ -1,4 +1,4 @@
-(ns dynamo.comms
+(ns dynamo.lib.comms
   (:require
     [gloss.core :as gloss]
     [gloss.io :as io]

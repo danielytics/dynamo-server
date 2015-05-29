@@ -1,6 +1,6 @@
 (ns mud-server.core-test
   (:require [clojure.test :refer :all]
-            [mud-server.core :refer :all]))
+            [dynamo.core :refer :all]))
 
 (deftest a-test
   (testing "FIXME, I fail."

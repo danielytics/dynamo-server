@@ -10,6 +10,7 @@
     [dynamo.components.command-parser :refer [new-command-parser]]
     [dynamo.components.commands.talk :refer [new-talk-commands]]
     [dynamo.components.commands.vision :refer [new-vision-commands]]
+    [dynamo.components.commands.movement :refer [new-movement-commands]]
     ))
 
 
@@ -82,11 +83,12 @@
                                 (new-command-parser)
                                 {:updater :game-loop})
              :cmds/talk       (new-talk-commands)
-             :cmds/vision     (new-vision-commands)}
+             :cmds/vision     (new-vision-commands)
+             :cmds/move       (new-movement-commands)}
    :depends {:server          {:handler :command-parser}
              ;; Register all update handlers with the game-loop
              :game-loop       [:game-world
-                               :cmds/talk :cmds/vision]
+                               :cmds/talk :cmds/vision :cmds/move]
              ;; Register all command components
-             :command-parser  [:cmds/talk :cmds/vision]}})
+             :command-parser  [:cmds/talk :cmds/vision :cmds/move]}})
 

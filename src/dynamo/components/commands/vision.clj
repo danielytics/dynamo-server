@@ -2,19 +2,34 @@
   (:require
     [dynamo.protocols.updates :as updates]
     [dynamo.protocols.commands :as commands]
+    [dynamo.components.commands.movement :refer [direction-to-text]]
+    [dynamo.tags :as t]  
+    [dynamo.lib.commands :as cmds]
     [dynamo.lib.player :as player]))
 
 
 (defn do-commands
   [command game-data player-data room-data {:keys [target]}]
     (case command
+      :command/quick-look
+        (player/reply! "You see " (:name room-data))
       :command/look
         (if target
-          (player/reply!  "You look at " target " and see nothing.\n")
-          (player/reply!  "You look around and see " (:name room-data) "\n"))
+          (player/reply! "You look at " target " and see nothing.")
+          (player/reply!
+            t/secure-line
+            "You look around and you are in " (t/room-name (:name room-data)) ".\n"
+            t/secure-line
+            "You see " (t/room-description (:description room-data)) ".\n"
+            (when-let [content (keys (:content room-data))]
+              (str t/secure-line "There are " (clojure.string/join ", " content) " here.\n"))
+            t/secure-line
+            (if-let [exits (:exits room-data)]
+              (t/exits "Obvious exits:" (map direction-to-text (keys exits)))
+              "There are no obvious exits.\n")))
       :command/glance
         (if target
-          (player/reply! "You glance at " target " and see nothing.\n")
+          (player/reply! "You glance at " target " and see nothing.")
           (player/reply! "What do you wish to glance at?")))
     game-data)
 
@@ -23,6 +38,7 @@
   updates/RegisterMultiHandler
   (updates/update-ids [_]
     [:command/look
+     :command/quick-look
      :command/glance])
 
   commands/Command 
@@ -33,14 +49,8 @@
               glance-aliases = 'gl' | 'glance'"})
 
   updates/Handler
-  (updates/handle [_ game-data [command command-data]]
-    (let [player-data (get-in game-data [:players (player/current)])]
-      (do-commands
-        command
-        game-data
-        player-data
-        (get-in game-data [:rooms (:room player-data)])
-        command-data))))
+  (updates/handle [c data command]
+    (cmds/handle [c data command] do-commands)))
 
 
 (defn new-vision-commands []
