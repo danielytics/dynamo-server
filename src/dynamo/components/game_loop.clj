@@ -23,21 +23,28 @@
                {(updates/update-id h)
                 [(fn [game-data [_ update-data]]
                    (updates/handle h game-data update-data))]}))
+        ;; Merge all of the maps in the vector together into one big map
         (apply merge-with concat))
       ;; Generate a map of all MultiHandler instances
       (->>
         components
         (filter #(and (satisfies? updates/Handler %)
                       (satisfies? updates/RegisterMultiHandler %)))
+        ;; Create a vector of of vectors of {update-id [handler-fn]} pairs
         (map
           (fn [mh]
             (for [id (updates/update-ids mh)]
               {id [(partial updates/handle mh)]})))
+        ;; Flatten the vector of vectors into a single vector
         flatten
+        ;; Merge all of the maps in the vector together into one big map
         (apply merge-with concat)))))
 
 
 (defn- handle-forward
+  "Handle the special ':update/forward' update, which forwards the update to
+   another updaate only if a handler exists for it, otherwise it forwards an
+   error"
   [{:keys [handlers] :as component}
    game-world
    [_ {:keys [command data on-failure] :as x}]]
@@ -80,7 +87,6 @@
         ;; A second from now, tell all components that want to init the game-world
         ;; to do so
         (async/go (async/<! (async/timeout 1000))
-                  (println "Sending init")
                   (updates/send! component :game/init nil))
         component)))
 
