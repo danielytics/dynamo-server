@@ -1,5 +1,4 @@
-# dynamo-server
-MUD server
+# Dynamo MUD server
 
 
 ```
